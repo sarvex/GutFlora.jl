@@ -2,10 +2,10 @@ export md5, md5file
 
 const K = floor(UInt32, abs(sin(1:64))*2^32)
 
-const s = vcat(map(a->repmat(a, 4), ([7, 12, 17, 22],
-                                     [5,  9, 14, 20],
-                                     [4, 11, 16, 23],
-                                     [6, 10, 15, 21]))...)
+const s = vcat(map(a->repmat(a, 4), (Int32[7, 12, 17, 22],
+                                     Int32[5,  9, 14, 20],
+                                     Int32[4, 11, 16, 23],
+                                     Int32[6, 10, 15, 21]))...)
 
 # Uint64 -> 8 bytes
 split(b::Uint64) = [uint8(b >> 8i) for i = 0:7]
@@ -57,7 +57,7 @@ function md5(bs::UInt32...)
   return n
 end
 
-@inline leftrotate(x, c) = (x << c) | (x >> (32-c))
+@inline leftrotate(x::Uint32, c::Int32) = (x << c) | (x >> (int32(32)-c))
 
 function md5(io::IO)
   a, b, c, d = 0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476
