@@ -1,5 +1,5 @@
 module GutFlora
 
-# package code goes here
+include("md5.jl")
 
 end # module
