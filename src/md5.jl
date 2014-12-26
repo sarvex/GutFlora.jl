@@ -1,3 +1,7 @@
+module MD5
+
+using ..GutFlora
+
 export md5, md5file
 
 const K = floor(UInt32, abs(sin(1:64))*2^32)
@@ -73,3 +77,5 @@ md5(s::String) = md5(IOBuffer(s))
 md5(s::Array{UInt8}) = md5(IOBuffer(s))
 
 md5file(f) = open(md5, f)
+
+end

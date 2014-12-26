@@ -1,5 +1,7 @@
 import Base: reverse
 
+export split2, split4, split8, bitcat
+
 splitfn(S, T) =
   :($(symbol(string("split", sizeof(S)÷sizeof(T))))(x::$S) =
       ($([:((x >> $(8sizeof(T)*(i-1))) % $T) for i = (sizeof(S)÷sizeof(T)):-1:1]...),))
