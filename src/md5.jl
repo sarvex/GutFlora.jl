@@ -1,5 +1,7 @@
 module MD5
 
+import Base: start, next, done
+
 using ..GutFlora
 
 export md5, md5file
@@ -11,41 +13,52 @@ const s = vcat(map(a->repmat(a, 4), (Int32[7, 12, 17, 22],
                                      Int32[4, 11, 16, 23],
                                      Int32[6, 10, 15, 21]))...)
 
-# Read 64 bytes (512 bits) out of the stream
-function chunk!(ch::Array{Uint8}, io::IO)
-  forced = position(io) > 0 && eof(io)
-  l = length(ch) # 64
-  n = readbytes!(io, ch)
-  if n < length(ch)
-    ch[n+1] = forced ? 0x00 : 0x80 # append 100000... 
-    for i = n+2:l
-      ch[i] = 0x00
-    end
-    l-n < 3 && # We need 3 bytes for 0x80 bit + Uint64 size
-      return false # Force another chunk
-    ch[l-7:l] = position(io)*8 |> UInt64 |> reverse |> split8 |> collect
-  end
-  return done = n < l || eof(io)
-end
-
-# Grab UInt32 words from byte chunk
+# UInt8 bytes to UInt32 words, little endian
 function word!(M::Array{UInt32}, ch::Array{Uint8})
   for i = 1:length(M)
     j = 4(i-1)
-    M[i] = reverse(bitcat(ch[j+1], ch[j+2], ch[j+3], ch[j+4]))
+    M[i] = bitcat(ch[j+4], ch[j+3], ch[j+2], ch[j+1])
   end
   return M
+end
+
+type MD5Chunks{T<:IO}
+  io::T
+  bytes::Vector{UInt8}  # length 64
+  words::Vector{UInt32} # length 16
+  marked::Bool # Appended the 1 bit
+  done::Bool   # Appended the length
+end
+
+MD5Chunks(io) = MD5Chunks(io, Array(UInt8, 64), Array(UInt32, 16), false, false)
+chunks(io) = MD5Chunks(io)
+
+start(cs::MD5Chunks) = nothing
+done(cs::MD5Chunks, _) = cs.done
+
+@inline function next(cs::MD5Chunks, _)
+  n = readbytes!(cs.io, cs.bytes)
+  if n < 64
+    cs.bytes[n+1] = cs.marked ? 0x00 : 0x80 # Append the 1 bit
+    cs.marked = true
+    for i = n+2:64
+      cs.bytes[i] = 0x00
+    end
+    if 64-n >= 9 # space for 0x80 + 64bit size
+      cs.bytes[64-7:64] = position(cs.io)*8 |> UInt64 |> reverse |> split8 |> collect
+      cs.done = true
+    end
+  end
+  word!(cs.words, cs.bytes)
+  return cs.words, nothing
 end
 
 @inline leftrotate(x::Uint32, c::Int32) = (x << c) | (x >> (int32(32)-c))
 
 function md5(io::IO)
   a, b, c, d = 0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476
-  ch = Array(Uint8, 64)
-  M = Array(UInt32, 16)
-  done = false
-  while !done
-    done = chunk!(ch, io); word!(M, ch)
+
+  for M in chunks(io)
     A, B, C, D = a, b, c, d
 
     for i = 0:63
