@@ -7,3 +7,9 @@ using Base.Test
 @test md5("abcdefghijklmnopqrstuvwxyz") == 0xc3fcd3d76192e4007dfb496cca67e13b
 @test md5("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789") == 0xd174ab98d277d9f5a5611c2c9f419d9f
 @test md5("12345678901234567890123456789012345678901234567890123456789012345678901234567890") == 0x57edf4a22be3c955ac49da2e2107b67a
+
+for i = 1:1_000_000
+  v = rand(UInt64)
+  k = rand(UInt128)
+  @test TEA.decrypt(TEA.encrypt(v, k), k) == v
+end
