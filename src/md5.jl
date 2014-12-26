@@ -7,9 +7,6 @@ const s = vcat(map(a->repmat(a, 4), (Int32[7, 12, 17, 22],
                                      Int32[4, 11, 16, 23],
                                      Int32[6, 10, 15, 21]))...)
 
-# Uint64 -> 8 bytes
-split(b::Uint64) = [uint8(b >> 8i) for i = 0:7]
-
 # Read 64 bytes (512 bits) out of the stream
 function chunk!(ch::Array{Uint8}, io::IO)
   forced = position(io) > 0 && eof(io)
@@ -22,39 +19,18 @@ function chunk!(ch::Array{Uint8}, io::IO)
     end
     l-n < 3 && # We need 3 bytes for 0x80 bit + Uint64 size
       return false # Force another chunk
-    ch[l-7:l] = position(io)*8 |> Uint64 |> split
+    ch[l-7:l] = position(io)*8 |> UInt64 |> reverse |> split8 |> collect
   end
   return done = n < l || eof(io)
 end
-
-# Four bytes -> 1 UInt32 word, little endian
-word(b1::Uint8, b2::Uint8, b3::Uint8, b4::Uint8) =
-  (uint32(b4) << 8*3) |
-  (uint32(b3) << 8*2) |
-  (uint32(b2) << 8*1) |
-  (uint32(b1) << 8*0)
 
 # Grab UInt32 words from byte chunk
 function word!(M::Array{UInt32}, ch::Array{Uint8})
   for i = 1:length(M)
     j = 4(i-1)
-    M[i] = word(ch[j+1], ch[j+2], ch[j+3], ch[j+4])
+    M[i] = reverse(bitcat(ch[j+1], ch[j+2], ch[j+3], ch[j+4]))
   end
   return M
-end
-
-# Four UInt32 words -> 1 md5 hash
-function md5(bs::UInt32...)
-  place = 16
-  n = uint128(0)
-  for b in bs
-    for _ = 1:4
-      place -= 1
-      n |= uint128(b & 0xff) << 8*place
-      b >>>= 8
-    end
-  end
-  return n
 end
 
 @inline leftrotate(x::Uint32, c::Int32) = (x << c) | (x >> (int32(32)-c))
@@ -90,7 +66,7 @@ function md5(io::IO)
     end
     a += A; b += B; c += C; d += D
   end
-  return md5(a, b, c, d)
+  return bitcat(reverse(a), reverse(b), reverse(c), reverse(d))
 end
 
 md5(s::String) = md5(IOBuffer(s))
